@@ -1,0 +1,160 @@
+services:
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    network_mode: "host"
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - certs:/etc/nginx/certs
+      - vhost-d:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - /cache:/var/cache/nginx
+    environment:
+      - NGINX_PROXY_CACHE_PATH=${NGINX_PROXY_CACHE_PATH} levels=${NGINX_PROXY_CACHE_LEVELS} keys_zone=${NGINX_PROXY_CACHE_KEYS_ZONE} max_size=${NGINX_PROXY_CACHE_MAX_SIZE} inactive=${NGINX_PROXY_CACHE_INACTIVE} use_temp_path=off
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE}"
+        max-file: "${LOG_MAX_FILE}"
+
+  acme-companion:
+    image: nginxproxy/acme-companion
+    network_mode: "host"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    depends_on:
+      nginx-proxy:
+        condition: service_started     
+    container_name: acme-companion
+    volumes_from:
+      - nginx-proxy
+    volumes:      
+      - acme:/etc/acme.sh
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DEFAULT_EMAIL=${DEFAULT_EMAIL}      
+      - NGINX_PROXY_CONTAINER=nginx-proxy      
+      - DEBUG=1             
+
+  walrus-aggregator:
+    build:
+      context: .
+      dockerfile: Dockerfile.walrus-aggregator
+      network: host
+    network_mode: "host"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4      
+    volumes:
+      - walrus-aggregator-publisher:/opt/walrus
+    container_name: walrus-aggregator
+    restart: unless-stopped
+    environment:
+      VIRTUAL_PORT: ${AGGREGATOR_VIRTUAL_PORT}
+      VIRTUAL_HOST: ${AGGREGATOR_VIRTUAL_HOST}
+      LETSENCRYPT_HOST: ${AGGREGATOR_VIRTUAL_HOST}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+      LETSENCRYPT_SINGLE_DOMAIN_CERTS: ${LETSENCRYPT_SINGLE_DOMAIN_CERTS}
+      VIRTUAL_HOST_CACHE: "true"
+      VIRTUAL_HOST_CACHE_DURATION: ${AGGREGATOR_CACHE_DURATION}
+      VIRTUAL_HOST_CACHE_VALID: ${AGGREGATOR_CACHE_VALID_SETTINGS}
+      VIRTUAL_HOST_CACHE_USE_STALE: ${AGGREGATOR_CACHE_STALE_SETTINGS}
+      BIND_ADDRESS: ${AGGREGATOR_BIND_ADDRESS}
+      METRICS_ADDRESS: ${AGGREGATOR_METRICS_ADDRESS}
+      RPC_URL: ${AGGREGATOR_RPC_URL}
+    ports:
+      - "${AGGREGATOR_VIRTUAL_PORT}:${AGGREGATOR_VIRTUAL_PORT}"
+      - "${AGGREGATOR_METRICS_ADDRESS##*:}:${AGGREGATOR_METRICS_ADDRESS##*:}"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE}"
+        max-file: "${LOG_MAX_FILE}"
+
+  walrus-publisher:
+    build:
+      context: .
+      dockerfile: Dockerfile.walrus-publisher
+      network: host
+    network_mode: "host"
+    depends_on:
+      walrus-aggregator:
+        condition: service_healthy
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4      
+    volumes:
+      - walrus-aggregator-publisher:/opt/walrus
+    container_name: walrus-publisher
+    restart: unless-stopped
+    environment:
+      VIRTUAL_PORT: ${PUBLISHER_VIRTUAL_PORT}
+      VIRTUAL_HOST: ${PUBLISHER_VIRTUAL_HOST}
+      LETSENCRYPT_HOST: ${PUBLISHER_VIRTUAL_HOST}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+      LETSENCRYPT_SINGLE_DOMAIN_CERTS: ${LETSENCRYPT_SINGLE_DOMAIN_CERTS}
+      BIND_ADDRESS: ${PUBLISHER_BIND_ADDRESS}
+      METRICS_ADDRESS: ${PUBLISHER_METRICS_ADDRESS}
+    ports:
+      - "${PUBLISHER_VIRTUAL_PORT}:${PUBLISHER_VIRTUAL_PORT}"
+      - "${PUBLISHER_METRICS_ADDRESS##*:}:${PUBLISHER_METRICS_ADDRESS##*:}"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE}"
+        max-file: "${LOG_MAX_FILE}"
+
+  walrus-storage-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.walrus-storage-node
+      network: host
+    network_mode: "host"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4      
+    volumes:
+      - /opt/walrus:/opt/walrus
+    container_name: walrus-storage-node
+    restart: unless-stopped
+    environment:
+      VIRTUAL_PORT: ${STORAGE_NODE_VIRTUAL_PORT}
+      VIRTUAL_HOST: ${STORAGE_NODE_VIRTUAL_HOST}
+      LETSENCRYPT_HOST: ${STORAGE_NODE_VIRTUAL_HOST}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+      LETSENCRYPT_SINGLE_DOMAIN_CERTS: ${LETSENCRYPT_SINGLE_DOMAIN_CERTS}
+      SERVER_NAME: ${STORAGE_NODE_SERVER_NAME}
+      NODE_NAME: ${STORAGE_NODE_NAME}
+      PUBLIC_PORT: ${STORAGE_NODE_PUBLIC_PORT}
+      NODE_CAPACITY: ${STORAGE_NODE_CAPACITY}
+      SYSTEM_OBJECT: ${STORAGE_NODE_SYSTEM_OBJECT}
+      STAKING_OBJECT: ${STORAGE_NODE_STAKING_OBJECT}
+      SUI_RPC: ${STORAGE_NODE_SUI_RPC}
+      IMAGE_URL: ${STORAGE_NODE_IMAGE_URL}
+      PROJECT_URL: ${STORAGE_NODE_PROJECT_URL}
+      DESCRIPTION: ${STORAGE_NODE_DESCRIPTION}
+    ports:
+      - "${STORAGE_NODE_PUBLIC_PORT}:${STORAGE_NODE_PUBLIC_PORT}"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE}"
+        max-file: "${LOG_MAX_FILE}"
+
+volumes:
+  certs:
+  vhost-d:
+  html:
+  acme:
+  walrus-aggregator-publisher:
+
+networks:
+  proxy:
+    driver: bridge
+  internal:
+    driver: bridge            
+

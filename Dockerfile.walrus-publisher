@@ -1,0 +1,29 @@
+FROM ubuntu:latest
+
+RUN apt-get update && \
+    apt-get install -y curl && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN groupadd walrus && \
+    useradd -g walrus walrus && \
+    mkdir -p /opt/walrus/bin /opt/walrus/config && \
+    chown -R walrus:walrus /opt/walrus
+
+USER walrus
+
+ENV RUST_BACKTRACE=1
+ENV RUST_LOG=info
+ENV SERVER_NAME=publisher.testnet.walrus.atalma.io
+ENV NODE_NAME="atalma.io"
+ENV PUBLIC_PORT=9001
+ENV AGGREGATOR_URL=https://aggregator.testnet.walrus.atalma.io
+ENV BINARY_URL=https://storage.googleapis.com/mysten-walrus-binaries/walrus-v1.13.2-ece8315-ubuntu-x86_64-generic
+
+COPY publisher-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+
+EXPOSE 9001
+EXPOSE 27183
+

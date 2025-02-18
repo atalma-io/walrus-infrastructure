@@ -1,0 +1,28 @@
+FROM ubuntu:latest
+
+RUN apt-get update && \
+    apt-get install -y curl && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN groupadd walrus && \
+    useradd -g walrus walrus && \
+    mkdir -p /opt/walrus/bin /opt/walrus/config && \
+    chown -R walrus:walrus /opt/walrus
+
+USER walrus
+
+ENV RUST_BACKTRACE=1
+ENV RUST_LOG=info
+ENV RPC_URL=https://lb-sui-testnet.brightlystake.com
+ENV METRICS_ADDRESS=127.0.0.1:27182
+ENV BIND_ADDRESS=127.0.0.1:9000 
+ENV BINARY_URL=https://storage.googleapis.com/mysten-walrus-binaries/walrus-v1.13.2-ece8315-ubuntu-x86_64-generic
+
+COPY aggregator-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+
+EXPOSE 9000
+EXPOSE 27182
+

@@ -1,0 +1,33 @@
+FROM ubuntu:latest
+
+RUN apt-get update && \
+    apt-get install -y curl && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN groupadd walrus && \
+    useradd -g walrus walrus && \
+    mkdir -p /opt/walrus/bin /opt/walrus/config /opt/walrus/db && \
+    chown -R walrus:walrus /opt/walrus
+
+USER walrus     
+
+ENV RUST_BACKTRACE=1
+ENV RUST_LOG=info
+ENV SERVER_NAME=testnet.walrus.atalma.io
+ENV NODE_NAME="atalma.io"
+ENV PUBLIC_PORT=9185
+ENV NODE_CAPACITY=48TiB
+ENV SYSTEM_OBJECT=0x98ebc47370603fe81d9e15491b2f1443d619d1dab720d586e429ed233e1255c1
+ENV STAKING_OBJECT=0x20266a17b4f1a216727f3eef5772f8d486a9e3b5e319af80a5b75809c035561d
+ENV SUI_RPC=https://mysten-rpc.testnet.sui.io:443
+ENV IMAGE_URL=https://vladiator-labs-ag.imgix.net/Logo%20and%20favicon/PNG/150dpi/Atalma_isotype_Green.png
+ENV PROJECT_URL="https://atalma.io"
+ENV BINARY_URL=https://storage.googleapis.com/mysten-walrus-binaries/walrus-node-v1.13.2-ece8315-ubuntu-x86_64-generic
+ENV DESCRIPTION="Protocol-aligned independent node operators, creators of performance monitoring tools @ https://vido.atalma.io, and @StakingDefense League forming partner"
+
+COPY storage-node-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+
+EXPOSE 9185
